@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EIP-712 Demo</title>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.6.8/dist/ethers.umd.min.js"></script>
+</head>
+
+<body>
+    <h1>EIP-712 Signing Demo with Ethers.js</h1>
+    <button id="signMsg">Sign Message</button>
+    <button id="signEip721Msg">Sign EIP-721 Message</button>
+
+    <script>
+        // 这里就可以直接使用 ethers 对象了
+        console.log(ethers);
+
+
+        {
+            const button1 = document.getElementById('signMsg');
+            button1.addEventListener('click', async () => {
+                if (window.ethereum) {
+                    try {
+                        await window.ethereum.request({ method: 'eth_requestAccounts' });
+                        const provider = new ethers.providers.Web3Provider(window.ethereum);
+                        const signer = provider.getSigner();
+
+                        const order = {
+                            from: await signer.getAddress(),
+                            to: '0x2d04c136Ebb705bd2cE858e28BeFe258C1Ec51F7',
+                            amount: 1000
+                        };
+                        // Convert the order object to a string representation
+                        const orderString = JSON.stringify(order);
+
+                        // Sign the stringified order
+                        // const orderHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(orderString));
+                        // const signature = await signer.signMessage(ethers.utils.arrayify(orderHash));
+                        const signature = await signer.signMessage(orderString);
+
+                        console.log(`Signature: ${signature}`);
+                    } catch (error) {
+                        console.error("Error signing the order:", error);
+                    }
+                } else {
+                    console.log("MetaMask is not installed. Please consider installing it: https://metamask.io/download.html");
+                }
+            });
+        }
+
+        {
+            const button2 = document.getElementById('signEip721Msg');
+            button2.addEventListener('click', async () => {
+                if (typeof window.ethereum !== 'undefined') {
+                    console.log('MetaMask is installed!');
+
+                    const provider = new ethers.providers.Web3Provider(window.ethereum);
+                    const signer = provider.getSigner();
+
+
+                    const domain = {
+                        name: 'MyOrderApp',
+                        version: '1',
+                        chainId: 10, // 使用具体的Chain ID
+                        verifyingContract: '0x2d04c136Ebb705bd2cE858e28BeFe258C1Ec51F7'
+                    };
+
+                    const types = {
+                        Order: [
+                            { name: 'from', type: 'address' },
+                            { name: 'to', type: 'address' },
+                            { name: 'amount', type: 'uint256' }
+                        ]
+                    };
+
+                    const order = {
+                        from: await signer.getAddress(),
+                        to: '0x2d04c136Ebb705bd2cE858e28BeFe258C1Ec51F7',
+                        amount: 1000
+                    };
+                    const signature = await signer._signTypedData(domain, types, order);
+                    console.log(`Signature: ${signature}`);
+                } else {
+                    console.log('MetaMask is not installed!');
+                }
+            });
+        }
+
+    </script>
+</body>
+
+</html>
