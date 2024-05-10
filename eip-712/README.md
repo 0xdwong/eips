@@ -1,0 +1,239 @@
+# EIP-712: 结构化数据签名
+
+当我们在区块链项目中使用以太坊智能合约时，身份验证和数据完整性是两个非常重要的考量因素。
+
+EIP-712 正是为了解决这些问题而生。它定义了一种以太坊消息的标准结构，使得这些消息可以在用户界面中更可读，并支持在链上验证这些消息的来源和完整性。
+
+## 什么是 EIP-712
+
+EIP-712 是一个以太坊改进提案，它提出了一种对结构化数据进行加密签名的标准方法。
+
+在引入 EIP-712 之前，用户在进行签名的过程中，通常需要对简单的文本字符串或是整个交易数据进行签名。这种方式不仅难以理解，还容易被滥用。EIP-712 改善了这个流程，通过使用结构化数据，提供了一种更安全、更直观的签名方案。
+
+`eth_signTypedData` 是实现 EIP-712 标准的主要工具。它是一个 RPC 方法，允许用户利用他们的私钥对一个格式严格定义的结构化数据进行签名。
+
+与传统的 `eth_sign` 方法相比，`eth_signTypedData` 通过提供前所未有的透明度和安全性来优化用户体验。这种方法不仅使用户在签名之前能够看到具体的签名数据内容，还保障了数据在转换过程中的不被篡改，大大降低了签名被误用的风险。
+
+
+![eth_sign](https://img.learnblockchain.cn/pics/eth_sign.png)
+
+`eth_sign`（上） 和 `eth_signTypedData`（下） 签名对比
+
+![eth_signTypedData](https://img.learnblockchain.cn/pics/eth_signTypedData.png)
+
+
+## 结构化数据签名流程
+
+EIP-712 提供了一个标准的方法来签名结构化数据：
+
+`digest = keccak256("\x19\x01" ‖ domainSeparator ‖ hashStruct(message))`
+
+这包括几个关键步骤，让我们逐一了解：
+
+1. `\x19\x01`:
+    这是一个固定的字节，用于区分不同类型的签名以防冲突。`0x19` 表示是以太坊的签名消息，`0x01` 则是特定于 EIP-712 的标识。
+    
+    更多签名数据标准参考 [EIP-191](https://github.com/ethereum/ercs/blob/master/ERCS/erc-191.md)
+
+2. 创建域分隔符 (EIP712Domain Separator)
+
+    域分隔符定义了签名消息的上下文环境，例如合约的名称、版本号、链 ID 和验证合约地址等。这可以帮助确保签名在正确的环境中被验证，避免在多个应用间的签名冲突，并帮助防止重放攻击。
+
+    域分隔符**可以**包含以下字段，具体取决于协议设计者的需求：
+    - `string name`：名称，通常是 DApp 或协议的名称
+    - `string version`：当前版本号，不同版本的签名可能不兼容
+    - `uint256 chainId`：链 ID，表明合约所在的区块链的链ID，以确保签名不会在不同的链之间被重用
+    - `address verifyingContract`：将用来验证签名的智能合约地址
+    - `bytes32 salt`：提供了额外的安全随机性
+
+    示例代码：
+    ```
+    bytes32 domainSeparator = keccak256(
+        abi.encode(
+            keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+            keccak256(bytes(name)),
+            keccak256(bytes(version)),
+            chainId,
+            verifyingContract
+        )
+    );
+    ```
+
+3. 创建结构化数据的哈希
+
+    假设我们有一个名为 Order 的结构，它包括以下字段：
+    ```
+    struct Order {
+        address from;
+        address to;
+        uint256 amount;
+    }
+    ```
+
+    首先定义并创建该结构的类型哈希：
+
+    `string constant TYPEHASH = keccak256("Order(address from,address to,uint256 amount)");`
+
+    然后将类型哈希与实际数据值一起编码并哈希：
+    ```
+    bytes32 structHash = keccak256(
+        abi.encode(
+            TYPEHASH,
+            order.from,
+            order.to,
+            order.amount
+        )
+    );
+    ```
+
+4. 生成最终签名哈希
+
+    结合域分隔符和结构化数据哈希，创建最终的签名哈希：
+    ```
+    bytes32 digest = keccak256(
+        abi.encodePacked(
+            "\x19\x01",
+            domainSeparator,
+            structHash
+        )
+    );
+    ```
+
+## 合约中验证签名
+
+合约中可以使用 `ecrecover` 函数来验证签名，确保签名者的地址与预期相匹配，从而验证签名的真实性和完整性。
+
+签名验证步骤如下：
+
+- 构造消息哈希：为了验证签名，首先需要重建签名时所用的相同消息哈希。这通常涉及将原始参数按照指定格式进行序列化与哈希处理。
+- 使用 `ecrecover` 函数恢复签名者的地址：Solidity 语言提供的 `ecrecover` 函数能够通过给定的消息哈希值及签名（包括`r`, `s`, `v`三个参数）来确定签名者的地址。
+- 校验恢复的地址与预期地址是否匹配：通过比较 `ecrecover` 函数输出的地址与事先定义的期望地址，确保恢复出的地址与预期一致，从而验证签名者的身份。这一步是确认交易发起者身份合法性的关键环节。
+
+## 完整合约示例
+
+接下来，我们将给出一个示例智能合约，展示如何在合约中集成 EIP-712 签名机制。这个合约将包括创建 EIP-712 域分隔符，结构化数据的哈希，以及验证签名的功能。
+
+```
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract EIP712Example {
+    struct Order {
+        address from;
+        address to;
+        uint256 amount;
+    }
+
+    bytes32 constant ORDER_TYPEHASH =
+        keccak256(
+            "Order(address from,address to,uint256 amount)"
+        );
+
+    bytes32 public DOMAIN_SEPARATOR;
+
+    constructor(string memory name, string memory version) {
+        DOMAIN_SEPARATOR = keccak256(
+            abi.encode(
+                keccak256(
+                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                ),
+                keccak256(bytes(name)),
+                keccak256(bytes(version)),
+                block.chainid,
+                address(this)
+            )
+        );
+    }
+
+    function _hashOrder(Order memory order) internal view returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                ORDER_TYPEHASH,
+                order.from,
+                order.to,
+                order.amount
+            )
+        );
+    }
+
+    function _hashTypedData(bytes32 structHash) internal view returns (bytes32) {
+        return keccak256(
+            abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash)
+        );
+    }
+
+    function verify(
+        Order memory order,
+        bytes memory signature
+    ) external view returns (bool) {
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+
+        if (signature.length != 65) {
+            return false;
+        }
+
+        assembly {
+            r := mload(add(signature, 32))
+            s := mload(add(signature, 64))
+            v := byte(0, mload(add(signature, 96)))
+        }
+
+        bytes32 structHash = _hashOrder(order);
+        bytes32 digest = _hashTypedData(structHash);
+        address signer = ecrecover(digest, v, r, s);
+
+        return signer == order.from;
+    }
+}
+```
+
+## 在客户端进行签名
+
+使用客户端（例如，ethers.js 和 MetaMask）让用户使用私钥对最终的哈希进行签名。下面是 JavaScript 示例代码：
+```
+const domain = {
+    name: 'MyOrderApp',
+    version: '1',
+    chainId: 10, // 使用具体的Chain ID
+    verifyingContract: '0x2d04c136Ebb705bd2cE858e28BeFe258C1Ec51F7', // 合约具体的合约地址
+};
+
+// 类型的定义
+const types = {
+    Order: [
+        { name: 'from', type: 'address' },
+        { name: 'to', type: 'address' },
+        { name: 'amount', type: 'uint256' }
+    ]
+};
+
+
+// 创建一个符合 Order 结构的消息实例。
+const order = {
+    from: '0xfrom...',
+    to: '0xto...',
+    amount: 1000
+};
+
+async function requestSignature() {
+    // 使用 ethers 连接到以太坊钱包
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+
+    await provider.send('eth_requestAccounts', []); // 请求用户授权
+    const signer = provider.getSigner();
+
+    // 发起签名
+    const signature = await signer._signTypedData(domain, types, order);
+    console.log('Signature:', signature);
+}
+```
+
+## 参考
+- [EIP-712](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-712.md)
+- [EIP-191](https://github.com/ethereum/ercs/blob/master/ERCS/erc-191.md)
+
+## 总结
+
+通过 EIP-712, Solidity 开发者可以实施更安全、更清晰的用户数据签名方案。这不仅提升了合约的安全性，也优化了用户体验。尽管实施上有一定的门槛，但其带来的好处是非常显著的。
