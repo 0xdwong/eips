@@ -8,5 +8,5 @@
 - [EIP-3074](./eip-3074.md)
 - [EIP-4337](./eip-4337.md)
 - [EIP-4844](./eip-4844.md)
-- [EIP-7600 Pectra 硬分叉元数据](./eip-4844.md)
-- [EIP-7692 EVM 对象格式 (EOFv1) 元数据](./eip-4844.md)
+- [EIP-7600 Hardfork Meta - Pectra](./eip-4844.md)
+- [EIP-7692 EVM Object Format (EOFv1) Meta](./eip-4844.md)
