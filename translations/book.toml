@@ -6,4 +6,3 @@ src = "zh-cn"
 title = "eips"
 
 [output.html]
-[output.pdf]
