@@ -2,7 +2,7 @@
 
 - [EIP-191](./eip-191.md)
 - [EIP-712](./eip-712.md)
-- [EIP-1153 瞬态存储操作码](./eip-1153.md)
+- [EIP-1153 Transient storage opcodes](./eip-1153.md)
 - [EIP-1474](./eip-1474.md)
 - [ERC-1167](./erc-1167.md)
 - [ERC-1967](./erc-1967.md)
