@@ -1,0 +1,6 @@
+[book]
+authors = ["0xdwong"]   
+language = "zh-cn"
+multilingual = false
+src = "src/zh-cn"
+title = "以太坊改进协议(EIPs)中文翻译"

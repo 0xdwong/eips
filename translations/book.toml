@@ -1,8 +1,0 @@
-[book]
-authors = ["0xdwong"]
-language = "zh-cn"
-multilingual = true
-src = "zh-cn"
-title = "eips"
-
-[output.html]
